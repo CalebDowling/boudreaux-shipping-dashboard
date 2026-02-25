@@ -341,6 +341,10 @@ export default function Dashboard() {
         <KPICard label="Total Shipping Cost" value={fmtMoney(k.totalCost)} color={B.light} delay={50}
           sub={`${fmtMoney(k.avgDailyCost)}/day`} />
         <KPICard label="Avg Cost / Shipment" value={fmtMoney(k.avgCostPerShipment)} color="#10b981" delay={100} />
+        <KPICard label="Ship to Patient" value={fmt(k.shipToPatient)} color="#34d399" delay={150}
+          sub={k.totalShipments > 0 ? `${fmtD(k.shipToPatient / k.totalShipments * 100, 1)}% of shipments` : ''} />
+        <KPICard label="Ship to Clinic" value={fmt(k.shipToClinic)} color="#f59e0b" delay={200}
+          sub={k.totalShipments > 0 ? `${fmtD(k.shipToClinic / k.totalShipments * 100, 1)}% of shipments` : ''} />
       </div>
 
       {/* ─── CHARTS GRID ─────────────────────────── */}

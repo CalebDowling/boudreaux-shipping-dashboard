@@ -18,8 +18,19 @@ class ShippingMetrics {
     const shipmentsByDay = {};
     const shipmentsByDow = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
 
+    let shipToPatient = 0;
+    let shipToClinic = 0;
+
     for (const s of shipments) {
       if (s.patient_id) shipmentPatients.add(s.patient_id);
+
+      // Clinics are set up as patients with "Co." prefix in first_name
+      const firstName = (s.patient && s.patient.first_name) || '';
+      if (firstName.startsWith('Co.')) {
+        shipToClinic++;
+      } else {
+        shipToPatient++;
+      }
 
       const dateStr = this._extractDate(s.created_at || s.shipped_at);
       if (dateStr) {
@@ -211,6 +222,8 @@ class ShippingMetrics {
         avgCostPerShipment,
         avgDailyCost,
         avgShipmentsPerDay: totalDays > 0 ? totalShipments / totalDays : 0,
+        shipToPatient,
+        shipToClinic,
         avgLagDays,
         uniquePatients: allPatients.size,
       },
