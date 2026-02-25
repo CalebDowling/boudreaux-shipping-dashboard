@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: boudreaux-shipping-dashboard
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: node server.js
+    envVars:
+      - key: DRX_API_KEY
+        sync: false
+      - key: DRX_BASE_URL
+        sync: false
+      - key: DRX_STORE_SLUG
+        sync: false
+      - key: NODE_ENV
+        value: production
