@@ -4,6 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area, Legend, LineChart, Line,
 } from 'recharts';
+import useIsMobile from './useIsMobile';
 
 // ─── FORMATTING HELPERS ──────────────────────────
 const fmt = (n) => (n || 0).toLocaleString();
@@ -153,28 +154,33 @@ function LoadingOverlay({ message }) {
 }
 
 // ─── REUSABLE CARD COMPONENTS ────────────────────
-function DashCard({ title, badge, children }) {
+function DashCard({ title, badge, compact, children }) {
   const [hovered, setHovered] = useState(false);
   return (
     <div style={{ ...S.card, ...(hovered ? S.cardHover : {}) }}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-      <div style={S.cardHeader}>
-        <span style={S.cardTitle}>{title}</span>
+      <div style={{ ...S.cardHeader, ...(compact ? { padding: '14px 16px 0' } : {}) }}>
+        <span style={{ ...S.cardTitle, ...(compact ? { fontSize: 14 } : {}) }}>{title}</span>
         {badge && <span style={{ ...S.badge, ...S.liveBadge }}>{badge}</span>}
       </div>
-      <div style={S.cardBody}>{children}</div>
+      <div style={{ ...S.cardBody, ...(compact ? { padding: '12px 16px 16px' } : {}) }}>{children}</div>
     </div>
   );
 }
 
-function KPICard({ label, value, sub, color, delay = 0 }) {
+function KPICard({ label, value, sub, color, delay = 0, compact }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <div style={{ ...S.kpiCard, ...(hovered ? S.kpiCardHover : {}), animationDelay: `${delay}ms` }}
+    <div style={{
+      ...S.kpiCard,
+      ...(hovered ? S.kpiCardHover : {}),
+      ...(compact ? { padding: '16px 14px' } : {}),
+      animationDelay: `${delay}ms`,
+    }}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-      <div style={S.kpiLabel}>{label}</div>
-      <div style={{ ...S.kpiValue, color: color || '#e2e8f0' }}>{value}</div>
-      {sub && <div style={S.kpiSub}>{sub}</div>}
+      <div style={{ ...S.kpiLabel, ...(compact ? { fontSize: 11, marginBottom: 6 } : {}) }}>{label}</div>
+      <div style={{ ...S.kpiValue, color: color || '#e2e8f0', ...(compact ? { fontSize: 24 } : {}) }}>{value}</div>
+      {sub && <div style={{ ...S.kpiSub, ...(compact ? { fontSize: 11, marginTop: 4 } : {}) }}>{sub}</div>}
     </div>
   );
 }
@@ -229,6 +235,7 @@ function CarrierTable({ carriers }) {
 
 // ─── MAIN DASHBOARD COMPONENT ────────────────────
 export default function Dashboard() {
+  const isMobile = useIsMobile();
   const [countdown, setCountdown] = useState(30);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -312,46 +319,82 @@ export default function Dashboard() {
     name: c.name, value: c.shipments, color: CARRIER_COLORS[i % CARRIER_COLORS.length],
   }));
 
+  const chartHeight = isMobile ? 220 : 340;
+  const pad = isMobile ? 12 : 24;
+
   return (
     <div style={{ fontFamily: "'DM Sans','Segoe UI',sans-serif", background: '#0a1a0f', minHeight: '100vh', color: '#e2e8f0' }}>
       {/* ─── HEADER ──────────────────────────────── */}
-      <header style={S.header}>
-        <div style={S.logo}>
-          <img src="/boudreaux-logo.webp" alt="Logo" style={S.logoImg} onError={(e) => { e.target.style.display = 'none'; }} />
-          <span style={S.logoText}>Shipping Dashboard</span>
+      <header style={{
+        ...S.header,
+        ...(isMobile ? {
+          flexDirection: 'column', alignItems: 'stretch', gap: 10, padding: '10px 12px',
+        } : {}),
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={S.logo}>
+            <img src="/boudreaux-logo.webp" alt="Logo" style={S.logoImg} onError={(e) => { e.target.style.display = 'none'; }} />
+            <span style={S.logoText}>Shipping Dashboard</span>
+          </div>
+          {isMobile && (
+            <span style={{ fontSize: 12, color: '#94a3b8' }}>
+              <span style={{ color: B.lime, fontWeight: 700 }}>{countdown}s</span>
+            </span>
+          )}
         </div>
-        <div style={S.headerRight}>
+        <div style={{
+          ...S.headerRight,
+          ...(isMobile ? { display: 'flex', gap: 0 } : {}),
+        }}>
           {[1, 7, 14, 30, 60, 90].map((r) => (
             <button key={r}
-              style={{ ...S.rangeBtn, ...(days === r ? S.rangeBtnActive : {}) }}
+              style={{
+                ...S.rangeBtn,
+                ...(days === r ? S.rangeBtnActive : {}),
+                ...(isMobile ? { flex: 1, padding: '8px 4px', borderRadius: 0, minHeight: 44, fontSize: 13 } : {}),
+                ...(isMobile && r === 1 ? { borderRadius: '6px 0 0 6px' } : {}),
+                ...(isMobile && r === 90 ? { borderRadius: '0 6px 6px 0' } : {}),
+              }}
               onClick={() => changeRange(r)}>
               {r === 1 ? '1D' : `${r}D`}
             </button>
           ))}
-          <span style={{ marginLeft: 8 }}>
-            Next refresh: <span style={{ color: B.lime, fontWeight: 700 }}>{countdown}s</span>
-          </span>
+          {!isMobile && (
+            <span style={{ marginLeft: 8 }}>
+              Next refresh: <span style={{ color: B.lime, fontWeight: 700 }}>{countdown}s</span>
+            </span>
+          )}
         </div>
       </header>
 
       {/* ─── KPI CARDS ───────────────────────────── */}
-      <div style={S.kpiRow}>
-        <KPICard label="Total Shipments" value={fmt(k.totalShipments)} color={B.lime} delay={0}
+      <div style={{
+        ...S.kpiRow,
+        ...(isMobile ? {
+          gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, padding: '12px 12px',
+        } : {}),
+      }}>
+        <KPICard compact={isMobile} label="Total Shipments" value={fmt(k.totalShipments)} color={B.lime} delay={0}
           sub={`${fmtD(k.avgShipmentsPerDay, 1)}/day`} />
-        <KPICard label="Total Shipping Cost" value={fmtMoney(k.totalCost)} color={B.light} delay={50}
+        <KPICard compact={isMobile} label="Total Shipping Cost" value={fmtMoney(k.totalCost)} color={B.light} delay={50}
           sub={`${fmtMoney(k.avgDailyCost)}/day`} />
-        <KPICard label="Avg Cost / Shipment" value={fmtMoney(k.avgCostPerShipment)} color="#10b981" delay={100} />
-        <KPICard label="Ship to Patient" value={fmt(k.shipToPatient)} color="#34d399" delay={150}
+        <KPICard compact={isMobile} label="Avg Cost / Shipment" value={fmtMoney(k.avgCostPerShipment)} color="#10b981" delay={100} />
+        <KPICard compact={isMobile} label="Ship to Patient" value={fmt(k.shipToPatient)} color="#34d399" delay={150}
           sub={k.totalShipments > 0 ? `${fmtD(k.shipToPatient / k.totalShipments * 100, 1)}% of shipments` : ''} />
-        <KPICard label="Ship to Clinic" value={fmt(k.shipToClinic)} color="#f59e0b" delay={200}
+        <KPICard compact={isMobile} label="Ship to Clinic" value={fmt(k.shipToClinic)} color="#f59e0b" delay={200}
           sub={k.totalShipments > 0 ? `${fmtD(k.shipToClinic / k.totalShipments * 100, 1)}% of shipments` : ''} />
       </div>
 
       {/* ─── CHARTS GRID ─────────────────────────── */}
-      <div style={S.grid}>
+      <div style={{
+        ...S.grid,
+        ...(isMobile ? {
+          gridTemplateColumns: '1fr', gap: 12, padding: '0 12px 12px',
+        } : {}),
+      }}>
         {/* Daily Shipment Trends */}
-        <DashCard title="Daily Shipment Volume" badge="LIVE">
-          <ResponsiveContainer width="100%" height={340}>
+        <DashCard title="Daily Shipment Volume" badge="LIVE" compact={isMobile}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
             <AreaChart data={dailyTrends}>
               <defs>
                 <linearGradient id="shipGrad" x1="0" y1="0" x2="0" y2="1">
@@ -360,7 +403,8 @@ export default function Dashboard() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={`rgba(${B.rgb},0.08)`} />
-              <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} />
+              <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }}
+                angle={isMobile ? -45 : 0} textAnchor={isMobile ? 'end' : 'middle'} height={isMobile ? 50 : 30} />
               <YAxis tick={{ fill: '#64748b', fontSize: 11 }} />
               <Tooltip content={<ChartTooltip />} />
               <Area type="monotone" dataKey="shipments" name="Shipments" stroke={B.lime} fill="url(#shipGrad)" strokeWidth={2} dot={false} />
@@ -369,8 +413,8 @@ export default function Dashboard() {
         </DashCard>
 
         {/* Daily Cost Trends */}
-        <DashCard title="Daily Shipping Spend">
-          <ResponsiveContainer width="100%" height={340}>
+        <DashCard title="Daily Shipping Spend" compact={isMobile}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
             <AreaChart data={costTrends}>
               <defs>
                 <linearGradient id="costGrad" x1="0" y1="0" x2="0" y2="1">
@@ -379,7 +423,8 @@ export default function Dashboard() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={`rgba(${B.rgb},0.08)`} />
-              <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} />
+              <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }}
+                angle={isMobile ? -45 : 0} textAnchor={isMobile ? 'end' : 'middle'} height={isMobile ? 50 : 30} />
               <YAxis tick={{ fill: '#64748b', fontSize: 11 }} tickFormatter={(v) => `$${(v / 1).toLocaleString()}`} />
               <Tooltip content={<ChartTooltip />} />
               <Area type="monotone" dataKey="cost" name="Daily Spend" stroke="#10b981" fill="url(#costGrad)" strokeWidth={2} dot={false} />
@@ -388,13 +433,13 @@ export default function Dashboard() {
         </DashCard>
 
         {/* Shipments per Carrier */}
-        <DashCard title="Shipments per Carrier" badge={`${carrierBreakdown.length}`}>
-          <div style={{ display: 'flex', gap: 20 }}>
+        <DashCard title="Shipments per Carrier" badge={`${carrierBreakdown.length}`} compact={isMobile}>
+          <div style={{ display: 'flex', gap: 20, ...(isMobile ? { flexDirection: 'column', gap: 12 } : {}) }}>
             {carrierPieData.length > 0 && (
-              <ResponsiveContainer width="40%" height={300}>
+              <ResponsiveContainer width={isMobile ? '100%' : '40%'} height={isMobile ? 200 : 300}>
                 <PieChart>
                   <Pie data={carrierPieData} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    innerRadius={45} outerRadius={75} paddingAngle={3} strokeWidth={0}>
+                    innerRadius={isMobile ? 35 : 45} outerRadius={isMobile ? 65 : 75} paddingAngle={3} strokeWidth={0}>
                     {carrierPieData.map((entry, i) => (
                       <Cell key={i} fill={entry.color} />
                     ))}
@@ -410,11 +455,12 @@ export default function Dashboard() {
         </DashCard>
 
         {/* Top States */}
-        <DashCard title="Shipments by State" badge={`${stateBreakdown.length}`}>
-          <ResponsiveContainer width="100%" height={340}>
+        <DashCard title="Shipments by State" badge={`${stateBreakdown.length}`} compact={isMobile}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
             <BarChart data={stateBreakdown}>
               <CartesianGrid strokeDasharray="3 3" stroke={`rgba(${B.rgb},0.08)`} />
-              <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 11 }} />
+              <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 11 }}
+                angle={isMobile ? -45 : 0} textAnchor={isMobile ? 'end' : 'middle'} height={isMobile ? 50 : 30} />
               <YAxis tick={{ fill: '#64748b', fontSize: 11 }} />
               <Tooltip content={<ChartTooltip />} />
               <Bar dataKey="shipments" name="Shipments" fill={B.lime} radius={[4, 4, 0, 0]} />
@@ -423,7 +469,7 @@ export default function Dashboard() {
         </DashCard>
 
         {/* Top Cities */}
-        <DashCard title="Top Destination Cities" badge={`${topCities.length}`}>
+        <DashCard title="Top Destination Cities" badge={`${topCities.length}`} compact={isMobile}>
           {topCities.length === 0 ? (
             <div style={{ color: '#64748b', fontSize: 13, padding: 12 }}>No geographic data</div>
           ) : (
@@ -453,8 +499,8 @@ export default function Dashboard() {
         </DashCard>
 
         {/* Day-of-Week Distribution */}
-        <DashCard title="Volume by Day of Week">
-          <ResponsiveContainer width="100%" height={340}>
+        <DashCard title="Volume by Day of Week" compact={isMobile}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
             <BarChart data={dowDist}>
               <CartesianGrid strokeDasharray="3 3" stroke={`rgba(${B.rgb},0.08)`} />
               <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 11 }} />
@@ -467,7 +513,7 @@ export default function Dashboard() {
       </div>
 
       {/* ─── FOOTER ──────────────────────────────── */}
-      <div style={{ textAlign: 'center', padding: '16px 24px 24px', fontSize: 11, color: '#475569' }}>
+      <div style={{ textAlign: 'center', padding: isMobile ? '12px 12px 16px' : '16px 24px 24px', fontSize: 11, color: '#475569' }}>
         Boudreaux's Pharmacy Shipping Dashboard
         {lastRefresh && ` | Last updated: ${lastRefresh.toLocaleTimeString()}`}
         {data.startDate && ` | Range: ${data.startDate} to ${data.endDate}`}
