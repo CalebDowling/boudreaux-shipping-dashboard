@@ -7,12 +7,33 @@
   </defs>
   <!-- Background rounded square -->
   <rect width="512" height="512" rx="96" fill="url(#bg)"/>
-  <!-- Box body -->
-  <rect x="116" y="200" width="280" height="200" rx="16" fill="#2e8b3e" opacity="0.9"/>
-  <!-- Box lid / flap -->
-  <path d="M96 200 L256 130 L416 200 L416 220 L256 160 L96 220 Z" fill="#7cc243"/>
-  <!-- Box tape stripe -->
-  <rect x="236" y="200" width="40" height="200" rx="4" fill="#a8d86e" opacity="0.6"/>
-  <!-- Up arrow (shipping/outbound) -->
-  <path d="M256 260 L306 320 L281 320 L281 370 L231 370 L231 320 L206 320 Z" fill="#ffffff" opacity="0.95"/>
+  <!-- Truck cargo body -->
+  <rect x="60" y="160" width="240" height="170" rx="12" fill="#2e8b3e"/>
+  <!-- Cargo door lines -->
+  <line x1="180" y1="170" x2="180" y2="320" stroke="#7cc243" stroke-width="3" opacity="0.5"/>
+  <line x1="120" y1="170" x2="120" y2="320" stroke="#7cc243" stroke-width="3" opacity="0.3"/>
+  <!-- Truck cab -->
+  <path d="M300 210 L380 210 L430 270 L430 330 L300 330 Z" fill="#7cc243"/>
+  <!-- Cab window -->
+  <path d="M315 220 L370 220 L410 268 L315 268 Z" fill="#0a1a0f" opacity="0.6"/>
+  <!-- Cab window shine -->
+  <path d="M320 225 L345 225 L370 263 L320 263 Z" fill="#a8d86e" opacity="0.15"/>
+  <!-- Truck undercarriage -->
+  <rect x="50" y="330" width="390" height="24" rx="6" fill="#1b6d2f"/>
+  <!-- Front bumper -->
+  <rect x="425" y="290" width="20" height="64" rx="6" fill="#a8d86e" opacity="0.8"/>
+  <!-- Headlight -->
+  <rect x="430" y="296" width="10" height="16" rx="4" fill="#fbbf24"/>
+  <!-- Left wheel -->
+  <circle cx="155" cy="358" r="36" fill="#1a1a2e"/>
+  <circle cx="155" cy="358" r="24" fill="#334155"/>
+  <circle cx="155" cy="358" r="10" fill="#64748b"/>
+  <!-- Right wheel -->
+  <circle cx="370" cy="358" r="36" fill="#1a1a2e"/>
+  <circle cx="370" cy="358" r="24" fill="#334155"/>
+  <circle cx="370" cy="358" r="10" fill="#64748b"/>
+  <!-- Speed lines -->
+  <rect x="30" y="230" width="20" height="4" rx="2" fill="#7cc243" opacity="0.5"/>
+  <rect x="22" y="260" width="30" height="4" rx="2" fill="#7cc243" opacity="0.4"/>
+  <rect x="28" y="290" width="22" height="4" rx="2" fill="#7cc243" opacity="0.3"/>
 </svg>
