@@ -26,7 +26,7 @@ function KPICard({ label, value, sub, color, delay = 0, compact }) {
     }}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
       <div style={{ ...S.kpiLabel, ...(compact ? { fontSize: 11, marginBottom: 6 } : {}) }}>{label}</div>
-      <div style={{ ...S.kpiValue, color: color || '#e2e8f0', ...(compact ? { fontSize: 24 } : {}) }}>{value}</div>
+      <div style={{ ...S.kpiValue, color: color || '#1e293b', ...(compact ? { fontSize: 24 } : {}) }}>{value}</div>
       {sub && <div style={{ ...S.kpiSub, ...(compact ? { fontSize: 11, marginTop: 4 } : {}) }}>{sub}</div>}
     </div>
   );
@@ -39,7 +39,7 @@ function ChartsSkeleton({ isMobile }) {
     minHeight: isMobile ? 280 : 400,
   };
   const shimmer = {
-    background: `linear-gradient(90deg, rgba(${B.rgb},0.05) 25%, rgba(${B.rgb},0.12) 50%, rgba(${B.rgb},0.05) 75%)`,
+    background: `linear-gradient(90deg, #e8f0eb 25%, #d1e7d8 50%, #e8f0eb 75%)`,
     backgroundSize: '200% 100%',
     animation: 'shimmer 1.5s ease-in-out infinite',
     borderRadius: 8,
@@ -151,7 +151,7 @@ export default function Dashboard() {
   const chartHeight = isMobile ? 220 : 340;
 
   return (
-    <div style={{ fontFamily: "'DM Sans','Segoe UI',sans-serif", background: '#0a1a0f', minHeight: '100vh', color: '#e2e8f0' }}>
+    <div style={{ fontFamily: "'DM Sans','Segoe UI',sans-serif", background: '#f8faf9', minHeight: '100vh', color: '#1e293b' }}>
       {/* ─── HEADER ──────────────────────────────── */}
       <header style={{
         ...S.header,
@@ -165,8 +165,8 @@ export default function Dashboard() {
             <span style={S.logoText}>Shipping Dashboard</span>
           </div>
           {isMobile && (
-            <span style={{ fontSize: 12, color: '#94a3b8' }}>
-              <span style={{ color: B.lime, fontWeight: 700 }}>{countdown}s</span>
+            <span style={{ fontSize: 12, color: '#5a6b72' }}>
+              <span style={{ color: B.mid, fontWeight: 700 }}>{countdown}s</span>
             </span>
           )}
         </div>
@@ -189,7 +189,7 @@ export default function Dashboard() {
           ))}
           {!isMobile && (
             <span style={{ marginLeft: 8 }}>
-              Next refresh: <span style={{ color: B.lime, fontWeight: 700 }}>{countdown}s</span>
+              Next refresh: <span style={{ color: B.mid, fontWeight: 700 }}>{countdown}s</span>
             </span>
           )}
         </div>
@@ -202,14 +202,14 @@ export default function Dashboard() {
           gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, padding: '12px 12px',
         } : {}),
       }}>
-        <KPICard compact={isMobile} label="Total Shipments" value={fmt(k.totalShipments)} color={B.lime} delay={0}
+        <KPICard compact={isMobile} label="Total Shipments" value={fmt(k.totalShipments)} color={B.dark} delay={0}
           sub={`${fmtD(k.avgShipmentsPerDay, 1)}/day`} />
-        <KPICard compact={isMobile} label="Total Shipping Cost" value={fmtMoney(k.totalCost)} color={B.light} delay={50}
+        <KPICard compact={isMobile} label="Total Shipping Cost" value={fmtMoney(k.totalCost)} color={B.mid} delay={50}
           sub={`${fmtMoney(k.avgDailyCost)}/day`} />
-        <KPICard compact={isMobile} label="Avg Cost / Shipment" value={fmtMoney(k.avgCostPerShipment)} color="#10b981" delay={100} />
-        <KPICard compact={isMobile} label="Ship to Patient" value={fmt(k.shipToPatient)} color="#34d399" delay={150}
+        <KPICard compact={isMobile} label="Avg Cost / Shipment" value={fmtMoney(k.avgCostPerShipment)} color="#059669" delay={100} />
+        <KPICard compact={isMobile} label="Ship to Patient" value={fmt(k.shipToPatient)} color={B.lime} delay={150}
           sub={k.totalShipments > 0 ? `${fmtD(k.shipToPatient / k.totalShipments * 100, 1)}% of shipments` : ''} />
-        <KPICard compact={isMobile} label="Ship to Clinic" value={fmt(k.shipToClinic)} color="#f59e0b" delay={200}
+        <KPICard compact={isMobile} label="Ship to Clinic" value={fmt(k.shipToClinic)} color="#d97706" delay={200}
           sub={k.totalShipments > 0 ? `${fmtD(k.shipToClinic / k.totalShipments * 100, 1)}% of shipments` : ''} />
       </div>
 
@@ -236,7 +236,7 @@ export default function Dashboard() {
       </div>
 
       {/* ─── FOOTER ──────────────────────────────── */}
-      <div style={{ textAlign: 'center', padding: isMobile ? '12px 12px 16px' : '16px 24px 24px', fontSize: 11, color: '#475569' }}>
+      <div style={{ textAlign: 'center', padding: isMobile ? '12px 12px 16px' : '16px 24px 24px', fontSize: 11, color: '#6b7c85' }}>
         Boudreaux's Pharmacy Shipping Dashboard
         {lastRefresh && ` | Last updated: ${lastRefresh.toLocaleTimeString()}`}
         {data.startDate && ` | Range: ${data.startDate} to ${data.endDate}`}

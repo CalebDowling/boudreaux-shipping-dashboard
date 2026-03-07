@@ -4,14 +4,14 @@
 
 body {
   font-family: 'DM Sans', 'Segoe UI', sans-serif;
-  background: #0a1a0f;
-  color: #e2e8f0;
+  background: #f8faf9;
+  color: #1e293b;
   min-height: 100vh;
 }
 
 ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: rgba(10,26,15,0.5); }
-::-webkit-scrollbar-thumb { background: rgba(27,109,47,0.3); border-radius: 3px; }
+::-webkit-scrollbar-track { background: rgba(226,235,230,0.5); }
+::-webkit-scrollbar-thumb { background: rgba(45,164,78,0.3); border-radius: 3px; }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
@@ -25,4 +25,12 @@ body {
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Smooth scroll on iOS */
+html { -webkit-overflow-scrolling: touch; }
+
+/* Prevent double-tap zoom on interactive elements */
+button, a, [role="button"] {
+  touch-action: manipulation;
 }
