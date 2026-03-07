@@ -73,7 +73,7 @@ function CarrierTable({ carriers }) {
 }
 
 // ─── CHARTS GRID ─────────────────────────────────
-export default function ChartsGrid({ dailyTrends, costTrends, carrierBreakdown, carrierPieData, stateBreakdown, topCities, dowDist, isMobile, chartHeight }) {
+export default function ChartsGrid({ dailyTrends, costTrends, carrierBreakdown, carrierPieData, stateBreakdown, topCities, dowDist, lagDistribution, isMobile, chartHeight }) {
   return (
     <>
       {/* Daily Shipment Trends */}
@@ -181,6 +181,21 @@ export default function ChartsGrid({ dailyTrends, costTrends, carrierBreakdown, 
           </div>
         )}
       </DashCard>
+
+      {/* Order-to-Ship Lag Distribution */}
+      {lagDistribution.length > 0 && (
+        <DashCard title="Order-to-Ship Time" compact={isMobile}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
+            <BarChart data={lagDistribution} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" stroke="#e8f0eb" />
+              <XAxis type="number" tick={{ fill: '#6b7c85', fontSize: 11 }} />
+              <YAxis type="category" dataKey="name" tick={{ fill: '#6b7c85', fontSize: 11 }} width={80} />
+              <Tooltip content={<ChartTooltip />} />
+              <Bar dataKey="count" name="Shipments" fill={B.mid} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </DashCard>
+      )}
 
       {/* Day-of-Week Distribution */}
       <DashCard title="Volume by Day of Week" compact={isMobile}>

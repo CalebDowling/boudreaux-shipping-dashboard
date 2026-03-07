@@ -260,6 +260,14 @@ export default function Dashboard() {
           sub={k.totalShipments > 0 ? `${fmtD(k.shipToPatient / k.totalShipments * 100, 1)}% of shipments` : ''} />
         <KPICard compact={isMobile} label="Ship to Clinic" value={fmt(k.shipToClinic)} color="#d97706" delay={200}
           sub={k.totalShipments > 0 ? `${fmtD(k.shipToClinic / k.totalShipments * 100, 1)}% of shipments` : ''} />
+        <KPICard compact={isMobile} label="Avg Order-to-Ship" value={`${fmtD(k.avgLagDays, 1)} days`} color="#059669" delay={250}
+          sub={(() => {
+            const ld = data.lagDistribution;
+            if (!ld || !ld.length) return '';
+            const top = ld.reduce((a, b) => b.count > a.count ? b : a, ld[0]);
+            const total = ld.reduce((s, b) => s + b.count, 0);
+            return total > 0 ? `${fmtD(top.count / total * 100, 0)}% ${top.name.toLowerCase()}` : '';
+          })()} />
       </div>
 
       {/* ─── CHARTS GRID (lazy-loaded) ────────────── */}
@@ -278,6 +286,7 @@ export default function Dashboard() {
             stateBreakdown={stateBreakdown}
             topCities={topCities}
             dowDist={dowDist}
+            lagDistribution={data.lagDistribution || []}
             isMobile={isMobile}
             chartHeight={chartHeight}
           />
