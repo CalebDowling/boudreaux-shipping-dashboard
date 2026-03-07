@@ -71,6 +71,8 @@ export default function Dashboard() {
   const [loadingMsg, setLoadingMsg] = useState('Connecting to API...');
   const [lastRefresh, setLastRefresh] = useState(null);
   const [days, setDays] = useState(1);
+  const [customDate, setCustomDate] = useState('');
+  const dateRef = useRef(null);
   const daysRef = useRef(1);
 
   const REFRESH_INTERVAL = days === 1 ? 15 : 30;
@@ -119,8 +121,20 @@ export default function Dashboard() {
 
   const changeRange = useCallback((newDays) => {
     setDays(newDays);
+    setCustomDate('');
     daysRef.current = newDays;
     loadData(newDays);
+  }, [loadData]);
+
+  const handleDatePick = useCallback((dateStr) => {
+    if (!dateStr) return;
+    const picked = new Date(dateStr + 'T00:00:00');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const diff = Math.max(1, Math.round((today - picked) / 86400000) + 1);
+    setCustomDate(dateStr);
+    setDays(diff);
+    daysRef.current = diff;
+    loadData(diff);
   }, [loadData]);
 
   useEffect(() => {
@@ -174,19 +188,54 @@ export default function Dashboard() {
           ...S.headerRight,
           ...(isMobile ? { display: 'flex', gap: 0 } : {}),
         }}>
-          {[1, 7, 14, 30, 60, 90].map((r) => (
+          {[1, 7, 30].map((r, i, arr) => (
             <button key={r}
               style={{
                 ...S.rangeBtn,
-                ...(days === r ? S.rangeBtnActive : {}),
+                ...(!customDate && days === r ? S.rangeBtnActive : {}),
                 ...(isMobile ? { flex: 1, padding: '8px 4px', borderRadius: 0, minHeight: 44, fontSize: 13 } : {}),
-                ...(isMobile && r === 1 ? { borderRadius: '6px 0 0 6px' } : {}),
-                ...(isMobile && r === 90 ? { borderRadius: '0 6px 6px 0' } : {}),
+                ...(isMobile && i === 0 ? { borderRadius: '6px 0 0 6px' } : {}),
               }}
               onClick={() => changeRange(r)}>
               {r === 1 ? '1D' : `${r}D`}
             </button>
           ))}
+          {/* Calendar date picker */}
+          <div style={{ position: 'relative', display: 'inline-flex' }}>
+            <button
+              style={{
+                ...S.rangeBtn,
+                ...(customDate ? S.rangeBtnActive : {}),
+                ...(isMobile ? { flex: 'none', padding: '8px 10px', borderRadius: '0 6px 6px 0', minHeight: 44, fontSize: 16 } : {}),
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}
+              onClick={() => dateRef.current?.showPicker?.()}
+              title="Pick a start date"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ display: 'block' }}>
+                <rect x="1.5" y="2.5" width="13" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.3" fill="none" />
+                <line x1="1.5" y1="6" x2="14.5" y2="6" stroke="currentColor" strokeWidth="1.3" />
+                <line x1="5" y1="1" x2="5" y2="4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                <line x1="11" y1="1" x2="11" y2="4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+              {customDate && !isMobile && (
+                <span style={{ fontSize: 11, fontWeight: 600 }}>
+                  {new Date(customDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </span>
+              )}
+            </button>
+            <input
+              ref={dateRef}
+              type="date"
+              max={new Date().toISOString().split('T')[0]}
+              value={customDate}
+              onChange={(e) => handleDatePick(e.target.value)}
+              style={{
+                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                opacity: 0, cursor: 'pointer', pointerEvents: 'none',
+              }}
+            />
+          </div>
           {!isMobile && (
             <span style={{ marginLeft: 8 }}>
               Next refresh: <span style={{ color: B.mid, fontWeight: 700 }}>{countdown}s</span>
