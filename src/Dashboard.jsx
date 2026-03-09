@@ -264,29 +264,16 @@ export default function Dashboard() {
           sub={k.totalShipments > 0 ? `${fmtD(k.shipToPatient / k.totalShipments * 100, 1)}% of shipments` : ''} />
         <KPICard compact={isMobile} label="Ship to Clinic" value={fmt(k.shipToClinic)} color="#d97706" delay={200}
           sub={k.totalShipments > 0 ? `${fmtD(k.shipToClinic / k.totalShipments * 100, 1)}% of shipments` : ''} />
-        <KPICard compact={isMobile} label="Avg Order-to-Ship" value={`${fmtD(k.avgLagDays, 1)} days`} color="#059669" delay={250}
-          sub={(() => {
-            const ld = data.lagDistribution;
-            if (!ld || !ld.length) return '';
-            const top = ld.reduce((a, b) => b.count > a.count ? b : a, ld[0]);
-            const total = ld.reduce((s, b) => s + b.count, 0);
-            return total > 0 ? `${fmtD(top.count / total * 100, 0)}% ${top.name.toLowerCase()}` : '';
-          })()} />
       </div>
 
-      {/* ─── KPI ROW 2: DELIVERY & PROCESSING ──────── */}
+      {/* ─── KPI ROW 2 ──────────────────────────────── */}
       <div style={{
         ...S.kpiRow,
         ...(isMobile ? {
           gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, padding: '12px 12px',
         } : { marginTop: 16 }),
       }}>
-        <KPICard compact={isMobile} label="Delivery Success Rate" value={fmtPct(k.deliverySuccessRate)} color="#10b981" delay={300}
-          sub={`${fmt(k.totalDeliveries)} total deliveries`} />
-        <KPICard compact={isMobile} label="Avg Turnaround" value={`${fmtD(k.avgDeliveryTurnaroundHours, 1)} hrs`} color={B.mid} delay={350} />
-        <KPICard compact={isMobile} label="Same-Day Processing" value={fmtPct(k.sameDayProcessingRate)} color={B.lime} delay={400}
-          sub="of orders ship same day" />
-        <KPICard compact={isMobile} label="Unique Patients" value={fmt(k.uniquePatients)} color={B.dark} delay={450}
+        <KPICard compact={isMobile} label="Unique Patients" value={fmt(k.uniquePatients)} color={B.dark} delay={300}
           sub={(() => {
             const pf = patientFrequency;
             if (!pf.length) return '';
