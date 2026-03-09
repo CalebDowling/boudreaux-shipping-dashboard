@@ -60,7 +60,7 @@ function CarrierTable({ carriers }) {
                     background: '#e6f9ec', color: B.dark,
                     border: '1px solid #b4dfc2',
                   }}>
-                    {fmtServiceName(svc.name)} ({svc.count})
+                    {fmtServiceName(svc.name)} ({svc.count}){svc.avgCost !== undefined ? ` · ${fmtMoney(svc.avgCost)}/ea` : ''}
                   </span>
                 ))}
               </div>
@@ -73,7 +73,7 @@ function CarrierTable({ carriers }) {
 }
 
 // ─── CHARTS GRID ─────────────────────────────────
-export default function ChartsGrid({ dailyTrends, costTrends, carrierBreakdown, carrierPieData, stateBreakdown, topCities, dowDist, lagDistribution, isMobile, chartHeight }) {
+export default function ChartsGrid({ dailyTrends, costTrends, weeklyCostTrends, carrierBreakdown, carrierPieData, stateBreakdown, topCities, dowDist, lagDistribution, statusBreakdown, hourDistribution, patientFrequency, isMobile, chartHeight }) {
   return (
     <>
       {/* Daily Shipment Trends */}
@@ -96,7 +96,7 @@ export default function ChartsGrid({ dailyTrends, costTrends, carrierBreakdown, 
         </ResponsiveContainer>
       </DashCard>
 
-      {/* Daily Cost Trends */}
+      {/* Daily Shipping Spend */}
       <DashCard title="Daily Shipping Spend" compact={isMobile}>
         <ResponsiveContainer width="100%" height={chartHeight}>
           <AreaChart data={costTrends}>
@@ -115,6 +115,46 @@ export default function ChartsGrid({ dailyTrends, costTrends, carrierBreakdown, 
           </AreaChart>
         </ResponsiveContainer>
       </DashCard>
+
+      {/* Delivery Status Breakdown */}
+      {statusBreakdown.some(s => s.value > 0) && (
+        <DashCard title="Delivery Status Breakdown" compact={isMobile}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
+            <PieChart>
+              <Pie data={statusBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                innerRadius={isMobile ? 40 : 60} outerRadius={isMobile ? 80 : 110} paddingAngle={3} strokeWidth={0}
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                {statusBreakdown.map((entry, i) => (
+                  <Cell key={i} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip content={<ChartTooltip />} />
+            </PieChart>
+          </ResponsiveContainer>
+        </DashCard>
+      )}
+
+      {/* Weekly Cost Trend */}
+      {weeklyCostTrends && weeklyCostTrends.length > 1 && (
+        <DashCard title="Weekly Cost Trend" compact={isMobile}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
+            <AreaChart data={weeklyCostTrends}>
+              <defs>
+                <linearGradient id="weekCostGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#059669" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#059669" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e8f0eb" />
+              <XAxis dataKey="name" tick={{ fill: '#6b7c85', fontSize: 10 }}
+                angle={isMobile ? -45 : 0} textAnchor={isMobile ? 'end' : 'middle'} height={isMobile ? 50 : 30} />
+              <YAxis tick={{ fill: '#6b7c85', fontSize: 11 }} tickFormatter={(v) => `$${v.toLocaleString()}`} />
+              <Tooltip content={<ChartTooltip />} />
+              <Area type="monotone" dataKey="cost" name="Weekly Spend" stroke="#059669" fill="url(#weekCostGrad)" strokeWidth={2} dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </DashCard>
+      )}
 
       {/* Shipments per Carrier */}
       <DashCard title="Shipments per Carrier" badge={`${carrierBreakdown.length}`} compact={isMobile}>
@@ -145,12 +185,30 @@ export default function ChartsGrid({ dailyTrends, costTrends, carrierBreakdown, 
             <CartesianGrid strokeDasharray="3 3" stroke="#e8f0eb" />
             <XAxis dataKey="name" tick={{ fill: '#6b7c85', fontSize: 11 }}
               angle={isMobile ? -45 : 0} textAnchor={isMobile ? 'end' : 'middle'} height={isMobile ? 50 : 30} />
-            <YAxis tick={{ fill: '#6b7c85', fontSize: 11 }} />
+            <YAxis yAxisId="left" tick={{ fill: '#6b7c85', fontSize: 11 }} />
+            <YAxis yAxisId="right" orientation="right" tick={{ fill: '#059669', fontSize: 11 }} tickFormatter={(v) => `$${v.toFixed(0)}`} />
             <Tooltip content={<ChartTooltip />} />
-            <Bar dataKey="shipments" name="Shipments" fill={B.lime} radius={[4, 4, 0, 0]} />
+            <Bar yAxisId="left" dataKey="shipments" name="Shipments" fill={B.lime} radius={[4, 4, 0, 0]} />
+            <Bar yAxisId="right" dataKey="avgCost" name="Avg Cost" fill="#059669" radius={[4, 4, 0, 0]} opacity={0.6} />
           </BarChart>
         </ResponsiveContainer>
       </DashCard>
+
+      {/* Peak Hour Distribution */}
+      {hourDistribution && hourDistribution.some(h => h.count > 0) && (
+        <DashCard title="Peak Hour Distribution" compact={isMobile}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
+            <BarChart data={hourDistribution}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e8f0eb" />
+              <XAxis dataKey="name" tick={{ fill: '#6b7c85', fontSize: 9 }}
+                angle={isMobile ? -45 : -45} textAnchor="end" height={50} interval={isMobile ? 2 : 1} />
+              <YAxis tick={{ fill: '#6b7c85', fontSize: 11 }} />
+              <Tooltip content={<ChartTooltip />} />
+              <Bar dataKey="count" name="Shipments" fill={B.mid} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </DashCard>
+      )}
 
       {/* Top Cities */}
       <DashCard title="Top Destination Cities" badge={`${topCities.length}`} compact={isMobile}>
@@ -192,6 +250,21 @@ export default function ChartsGrid({ dailyTrends, costTrends, carrierBreakdown, 
               <YAxis type="category" dataKey="name" tick={{ fill: '#6b7c85', fontSize: 11 }} width={80} />
               <Tooltip content={<ChartTooltip />} />
               <Bar dataKey="count" name="Shipments" fill={B.mid} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </DashCard>
+      )}
+
+      {/* Patient Shipping Frequency */}
+      {patientFrequency && patientFrequency.some(p => p.count > 0) && (
+        <DashCard title="Patient Shipping Frequency" compact={isMobile}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
+            <BarChart data={patientFrequency} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" stroke="#e8f0eb" />
+              <XAxis type="number" tick={{ fill: '#6b7c85', fontSize: 11 }} />
+              <YAxis type="category" dataKey="name" tick={{ fill: '#6b7c85', fontSize: 11 }} width={90} />
+              <Tooltip content={<ChartTooltip />} />
+              <Bar dataKey="count" name="Patients" fill={B.lime} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </DashCard>

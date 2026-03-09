@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import useIsMobile from './useIsMobile';
-import { B, S, CARRIER_COLORS, fmt, fmtD, fmtMoney, fmtDateShort } from './shared.jsx';
+import { B, S, CARRIER_COLORS, fmt, fmtD, fmtPct, fmtMoney, fmtDateShort } from './shared.jsx';
 
 const ChartsGrid = lazy(() => import('./ChartsGrid'));
 
@@ -161,6 +161,10 @@ export default function Dashboard() {
   const carrierPieData = carrierBreakdown.map((c, i) => ({
     name: c.name, value: c.shipments, color: CARRIER_COLORS[i % CARRIER_COLORS.length],
   }));
+  const statusBreakdown = data.statusBreakdown || [];
+  const hourDistribution = data.hourDistribution || [];
+  const patientFrequency = data.patientFrequency || [];
+  const weeklyCostTrends = (data.weeklyCostTrends || []).map(d => ({ ...d, name: fmtDateShort(d.date) }));
 
   const chartHeight = isMobile ? 220 : 340;
 
@@ -270,6 +274,27 @@ export default function Dashboard() {
           })()} />
       </div>
 
+      {/* ─── KPI ROW 2: DELIVERY & PROCESSING ──────── */}
+      <div style={{
+        ...S.kpiRow,
+        ...(isMobile ? {
+          gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, padding: '12px 12px',
+        } : { marginTop: 16 }),
+      }}>
+        <KPICard compact={isMobile} label="Delivery Success Rate" value={fmtPct(k.deliverySuccessRate)} color="#10b981" delay={300}
+          sub={`${fmt(k.totalDeliveries)} total deliveries`} />
+        <KPICard compact={isMobile} label="Avg Turnaround" value={`${fmtD(k.avgDeliveryTurnaroundHours, 1)} hrs`} color={B.mid} delay={350} />
+        <KPICard compact={isMobile} label="Same-Day Processing" value={fmtPct(k.sameDayProcessingRate)} color={B.lime} delay={400}
+          sub="of orders ship same day" />
+        <KPICard compact={isMobile} label="Unique Patients" value={fmt(k.uniquePatients)} color={B.dark} delay={450}
+          sub={(() => {
+            const pf = patientFrequency;
+            if (!pf.length) return '';
+            const top = pf.reduce((a, b) => b.count > a.count ? b : a, pf[0]);
+            return `${fmt(top.count)} with ${top.name.toLowerCase()}`;
+          })()} />
+      </div>
+
       {/* ─── CHARTS GRID (lazy-loaded) ────────────── */}
       <div style={{
         ...S.grid,
@@ -281,12 +306,16 @@ export default function Dashboard() {
           <ChartsGrid
             dailyTrends={dailyTrends}
             costTrends={costTrends}
+            weeklyCostTrends={weeklyCostTrends}
             carrierBreakdown={carrierBreakdown}
             carrierPieData={carrierPieData}
             stateBreakdown={stateBreakdown}
             topCities={topCities}
             dowDist={dowDist}
             lagDistribution={data.lagDistribution || []}
+            statusBreakdown={statusBreakdown}
+            hourDistribution={hourDistribution}
+            patientFrequency={patientFrequency}
             isMobile={isMobile}
             chartHeight={chartHeight}
           />

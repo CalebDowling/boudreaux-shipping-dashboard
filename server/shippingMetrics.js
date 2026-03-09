@@ -64,6 +64,20 @@ class ShippingMetrics {
       }
     }
 
+    // ─── PATIENT SHIPPING FREQUENCY ──────────────
+    const patientShipCounts = {};
+    for (const s of shipments) {
+      if (s.patient_id) patientShipCounts[s.patient_id] = (patientShipCounts[s.patient_id] || 0) + 1;
+    }
+    const freqBuckets = { '1 shipment': 0, '2-3': 0, '4-5': 0, '6+': 0 };
+    for (const count of Object.values(patientShipCounts)) {
+      if (count === 1) freqBuckets['1 shipment']++;
+      else if (count <= 3) freqBuckets['2-3']++;
+      else if (count <= 5) freqBuckets['4-5']++;
+      else freqBuckets['6+']++;
+    }
+    const patientFrequency = Object.entries(freqBuckets).map(([name, count]) => ({ name, count }));
+
     // ─── COMBINED UNIQUE PATIENTS ───────────────
     const allPatients = new Set([...shipmentPatients, ...deliveryPatients]);
 
@@ -84,6 +98,22 @@ class ShippingMetrics {
       { name: 'Pending', value: pending.length, color: '#f59e0b' },
       { name: 'Refused', value: refused.length, color: '#ef4444' },
     ];
+
+    // ─── AVG DELIVERY TURNAROUND ──────────────────
+    let totalTurnaroundHours = 0;
+    let turnaroundCount = 0;
+    for (const d of completed) {
+      if (d.completed_at && d.delivery_on) {
+        const scheduled = new Date(d.delivery_on + 'T00:00:00');
+        const completedAt = new Date(d.completed_at);
+        const hours = (completedAt - scheduled) / 3600000;
+        if (hours >= 0) {
+          totalTurnaroundHours += hours;
+          turnaroundCount++;
+        }
+      }
+    }
+    const avgDeliveryTurnaroundHours = turnaroundCount > 0 ? totalTurnaroundHours / turnaroundCount : 0;
 
     // ─── ROUTE BREAKDOWN ────────────────────────
     const routeMap = {};
@@ -118,14 +148,18 @@ class ShippingMetrics {
       }
       carrierMap[carrier].shipments++;
       carrierMap[carrier].cost += s.shipment_cost || 0;
-      carrierMap[carrier].services[service] = (carrierMap[carrier].services[service] || 0) + 1;
+      if (!carrierMap[carrier].services[service]) {
+        carrierMap[carrier].services[service] = { count: 0, cost: 0 };
+      }
+      carrierMap[carrier].services[service].count++;
+      carrierMap[carrier].services[service].cost += s.shipment_cost || 0;
     }
     const carrierBreakdown = Object.values(carrierMap)
       .map((c) => ({
         ...c,
         avgCost: c.shipments > 0 ? c.cost / c.shipments : 0,
         services: Object.entries(c.services)
-          .map(([name, count]) => ({ name, count }))
+          .map(([name, svc]) => ({ name, count: svc.count, cost: svc.cost, avgCost: svc.count > 0 ? svc.cost / svc.count : 0 }))
           .sort((a, b) => b.count - a.count),
       }))
       .sort((a, b) => b.shipments - a.shipments);
@@ -157,6 +191,24 @@ class ShippingMetrics {
         avgCost: costByDay[date] ? costByDay[date].cost / costByDay[date].count : 0,
       }));
 
+    // ─── WEEKLY COST TREND ──────────────────────────
+    const weekMap = {};
+    for (const ct of costTrends) {
+      const d = new Date(ct.date + 'T00:00:00');
+      // ISO week: Monday start
+      const day = d.getDay() || 7; // convert Sunday=0 to 7
+      const monday = new Date(d);
+      monday.setDate(d.getDate() - day + 1);
+      const weekKey = monday.toISOString().slice(0, 10);
+      if (!weekMap[weekKey]) weekMap[weekKey] = { date: weekKey, cost: 0, shipments: 0, days: 0 };
+      weekMap[weekKey].cost += ct.cost;
+      weekMap[weekKey].shipments += ct.shipments;
+      weekMap[weekKey].days++;
+    }
+    const weeklyCostTrends = Object.values(weekMap)
+      .map((w) => ({ ...w, avgDailyCost: w.days > 0 ? w.cost / w.days : 0 }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
     // ─── GEOGRAPHIC BREAKDOWN ─────────────────────
     const stateMap = {};
     const cityMap = {};
@@ -180,6 +232,7 @@ class ShippingMetrics {
       }
     }
     const stateBreakdown = Object.values(stateMap)
+      .map((s) => ({ ...s, avgCost: s.shipments > 0 ? s.cost / s.shipments : 0 }))
       .sort((a, b) => b.shipments - a.shipments);
     const topCities = Object.values(cityMap)
       .sort((a, b) => b.shipments - a.shipments)
@@ -204,12 +257,25 @@ class ShippingMetrics {
       else lagBuckets['3+']++;
     }
     const avgLagDays = lagCount > 0 ? totalLagDays / lagCount : 0;
+    const sameDayProcessingRate = lagCount > 0 ? (lagBuckets['0'] / lagCount) * 100 : 0;
     const lagDistribution = [
-      { name: 'Same Day', value: lagBuckets['0'] },
-      { name: '1 Day', value: lagBuckets['1'] },
-      { name: '2 Days', value: lagBuckets['2'] },
-      { name: '3+ Days', value: lagBuckets['3+'] },
+      { name: 'Same Day', count: lagBuckets['0'] },
+      { name: '1 Day', count: lagBuckets['1'] },
+      { name: '2 Days', count: lagBuckets['2'] },
+      { name: '3+ Days', count: lagBuckets['3+'] },
     ];
+
+    // ─── PEAK HOUR DISTRIBUTION ───────────────────
+    const hourBuckets = new Array(24).fill(0);
+    for (const s of shipments) {
+      const ts = s.created_at;
+      if (!ts) continue;
+      const hour = new Date(ts).getHours();
+      hourBuckets[hour]++;
+    }
+    const hourLabels = ['12AM','1AM','2AM','3AM','4AM','5AM','6AM','7AM','8AM','9AM','10AM','11AM',
+      '12PM','1PM','2PM','3PM','4PM','5PM','6PM','7PM','8PM','9PM','10PM','11PM'];
+    const hourDistribution = hourBuckets.map((count, hour) => ({ name: hourLabels[hour], hour, count }));
 
     // ─── RETURN COMPLETE METRICS ────────────────
     return {
@@ -226,14 +292,23 @@ class ShippingMetrics {
         shipToClinic,
         avgLagDays,
         uniquePatients: allPatients.size,
+        totalDeliveries,
+        deliverySuccessRate: completionRate,
+        deliveryRefusalRate: refusalRate,
+        avgDeliveryTurnaroundHours,
+        sameDayProcessingRate,
       },
       dailyTrends,
       costTrends,
+      weeklyCostTrends,
       dowDistribution,
       carrierBreakdown,
       stateBreakdown,
       topCities,
       lagDistribution,
+      statusBreakdown,
+      hourDistribution,
+      patientFrequency,
     };
   }
 
