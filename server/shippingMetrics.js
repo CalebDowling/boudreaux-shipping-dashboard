@@ -12,63 +12,102 @@ class ShippingMetrics {
     const end = new Date(endDate + 'T23:59:59');
     const totalDays = Math.max(1, Math.round((end - start) / 86400000));
 
-    // ─── SHIPMENT METRICS ───────────────────────
+    // ─── SHIPMENT METRICS (single pass) ──────────
     const totalShipments = shipments.length;
     const shipmentPatients = new Set();
     const shipmentsByDay = {};
     const shipmentsByDow = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
-
+    const patientShipCounts = {};
+    const carrierMap = {};
+    const stateMap = {};
+    const cityMap = {};
+    const costByDay = {};
+    const hourBuckets = new Array(24).fill(0);
+    const lagBuckets = { '0': 0, '1': 0, '2': 0, '3+': 0 };
     let shipToPatient = 0;
     let shipToClinic = 0;
+    let totalCost = 0;
+    let totalLagDays = 0;
+    let lagCount = 0;
 
     for (const s of shipments) {
-      if (s.patient_id) shipmentPatients.add(s.patient_id);
-
-      // Clinics are set up as patients with "Co." prefix in first_name
-      const firstName = (s.patient && s.patient.first_name) || '';
-      if (firstName.startsWith('Co.')) {
-        shipToClinic++;
-      } else {
-        shipToPatient++;
+      // Patient tracking
+      if (s.patient_id) {
+        shipmentPatients.add(s.patient_id);
+        patientShipCounts[s.patient_id] = (patientShipCounts[s.patient_id] || 0) + 1;
       }
 
+      // Clinic vs patient
+      const firstName = (s.patient && s.patient.first_name) || '';
+      if (firstName.startsWith('Co.')) shipToClinic++;
+      else shipToPatient++;
+
+      // Date bucketing
       const dateStr = this._extractDate(s.created_at || s.shipped_at);
       if (dateStr) {
         shipmentsByDay[dateStr] = (shipmentsByDay[dateStr] || 0) + 1;
         const dow = new Date(dateStr + 'T00:00:00').getDay();
         shipmentsByDow[dow]++;
       }
-    }
 
-    // ─── DELIVERY METRICS ───────────────────────
-    const totalDeliveries = deliveries.length;
-    const completed = deliveries.filter((d) => d.completed_at);
-    const refused = deliveries.filter((d) => d.refused_at);
-    const pending = deliveries.filter((d) => !d.completed_at && !d.refused_at);
+      // Carrier breakdown
+      const carrier = (s.carrier_code || 'unknown').toUpperCase();
+      const service = s.service_code || 'unknown';
+      if (!carrierMap[carrier]) carrierMap[carrier] = { name: carrier, shipments: 0, cost: 0, services: {} };
+      carrierMap[carrier].shipments++;
+      carrierMap[carrier].cost += s.shipment_cost || 0;
+      if (!carrierMap[carrier].services[service]) carrierMap[carrier].services[service] = { count: 0, cost: 0 };
+      carrierMap[carrier].services[service].count++;
+      carrierMap[carrier].services[service].cost += s.shipment_cost || 0;
 
-    const completionRate = totalDeliveries > 0 ? (completed.length / totalDeliveries) * 100 : 0;
-    const refusalRate = totalDeliveries > 0 ? (refused.length / totalDeliveries) * 100 : 0;
+      // Cost tracking
+      const cost = s.shipment_cost || 0;
+      totalCost += cost;
+      const costDateStr = this._extractDate(s.created_at || s.ship_date);
+      if (costDateStr) {
+        if (!costByDay[costDateStr]) costByDay[costDateStr] = { cost: 0, count: 0 };
+        costByDay[costDateStr].cost += cost;
+        costByDay[costDateStr].count++;
+      }
 
-    const deliveryPatients = new Set();
-    const deliveriesByDay = {};
-    const deliveriesByDow = [0, 0, 0, 0, 0, 0, 0];
+      // Geographic breakdown
+      const addr = s.address;
+      if (addr) {
+        const state = (addr.state || '').toUpperCase().trim();
+        if (state) {
+          if (!stateMap[state]) stateMap[state] = { name: state, shipments: 0, cost: 0 };
+          stateMap[state].shipments++;
+          stateMap[state].cost += cost;
+        }
+        const city = (addr.city || '').trim();
+        if (city && state) {
+          const cityKey = `${city}, ${state}`;
+          if (!cityMap[cityKey]) cityMap[cityKey] = { name: cityKey, shipments: 0, cost: 0 };
+          cityMap[cityKey].shipments++;
+          cityMap[cityKey].cost += cost;
+        }
+      }
 
-    for (const d of deliveries) {
-      if (d.patient_id) deliveryPatients.add(d.patient_id);
+      // Order-to-ship lag
+      if (s.ship_date && s.created_at) {
+        const created = new Date(s.created_at);
+        const shipped = new Date(s.ship_date + 'T00:00:00');
+        const lagDays = Math.max(0, Math.round((shipped.getTime() - created.getTime()) / 86400000));
+        totalLagDays += lagDays;
+        lagCount++;
+        if (lagDays === 0) lagBuckets['0']++;
+        else if (lagDays === 1) lagBuckets['1']++;
+        else if (lagDays === 2) lagBuckets['2']++;
+        else lagBuckets['3+']++;
+      }
 
-      const dateStr = this._extractDate(d.delivery_on || d.created_at);
-      if (dateStr) {
-        deliveriesByDay[dateStr] = (deliveriesByDay[dateStr] || 0) + 1;
-        const dow = new Date(dateStr + 'T00:00:00').getDay();
-        deliveriesByDow[dow]++;
+      // Peak hour
+      if (s.created_at) {
+        hourBuckets[new Date(s.created_at).getHours()]++;
       }
     }
 
-    // ─── PATIENT SHIPPING FREQUENCY ──────────────
-    const patientShipCounts = {};
-    for (const s of shipments) {
-      if (s.patient_id) patientShipCounts[s.patient_id] = (patientShipCounts[s.patient_id] || 0) + 1;
-    }
+    // Patient frequency buckets
     const freqBuckets = { '1 shipment': 0, '2-3': 0, '4-5': 0, '6+': 0 };
     for (const count of Object.values(patientShipCounts)) {
       if (count === 1) freqBuckets['1 shipment']++;
@@ -77,6 +116,43 @@ class ShippingMetrics {
       else freqBuckets['6+']++;
     }
     const patientFrequency = Object.entries(freqBuckets).map(([name, count]) => ({ name, count }));
+
+    // ─── DELIVERY METRICS (single pass) ─────────
+    const totalDeliveries = deliveries.length;
+    const completed = [];
+    const deliveryPatients = new Set();
+    const deliveriesByDay = {};
+    const deliveriesByDow = [0, 0, 0, 0, 0, 0, 0];
+    const routeMap = {};
+    let completedCount = 0, refusedCount = 0, pendingCount = 0;
+
+    for (const d of deliveries) {
+      if (d.patient_id) deliveryPatients.add(d.patient_id);
+
+      // Status
+      if (d.completed_at) { completedCount++; completed.push(d); }
+      else if (d.refused_at) refusedCount++;
+      else pendingCount++;
+
+      // Date bucketing
+      const dateStr = this._extractDate(d.delivery_on || d.created_at);
+      if (dateStr) {
+        deliveriesByDay[dateStr] = (deliveriesByDay[dateStr] || 0) + 1;
+        const dow = new Date(dateStr + 'T00:00:00').getDay();
+        deliveriesByDow[dow]++;
+      }
+
+      // Route breakdown
+      const routeName = d.route || 'Unassigned';
+      if (!routeMap[routeName]) routeMap[routeName] = { name: routeName, total: 0, completed: 0, pending: 0, refused: 0 };
+      routeMap[routeName].total++;
+      if (d.completed_at) routeMap[routeName].completed++;
+      else if (d.refused_at) routeMap[routeName].refused++;
+      else routeMap[routeName].pending++;
+    }
+
+    const completionRate = totalDeliveries > 0 ? (completedCount / totalDeliveries) * 100 : 0;
+    const refusalRate = totalDeliveries > 0 ? (refusedCount / totalDeliveries) * 100 : 0;
 
     // ─── COMBINED UNIQUE PATIENTS ───────────────
     const allPatients = new Set([...shipmentPatients, ...deliveryPatients]);
@@ -94,9 +170,9 @@ class ShippingMetrics {
 
     // ─── DELIVERY STATUS BREAKDOWN ──────────────
     const statusBreakdown = [
-      { name: 'Completed', value: completed.length, color: '#10b981' },
-      { name: 'Pending', value: pending.length, color: '#f59e0b' },
-      { name: 'Refused', value: refused.length, color: '#ef4444' },
+      { name: 'Completed', value: completedCount, color: '#10b981' },
+      { name: 'Pending', value: pendingCount, color: '#f59e0b' },
+      { name: 'Refused', value: refusedCount, color: '#ef4444' },
     ];
 
     // ─── AVG DELIVERY TURNAROUND ──────────────────
@@ -115,18 +191,6 @@ class ShippingMetrics {
     }
     const avgDeliveryTurnaroundHours = turnaroundCount > 0 ? totalTurnaroundHours / turnaroundCount : 0;
 
-    // ─── ROUTE BREAKDOWN ────────────────────────
-    const routeMap = {};
-    for (const d of deliveries) {
-      const routeName = d.route || 'Unassigned';
-      if (!routeMap[routeName]) {
-        routeMap[routeName] = { name: routeName, total: 0, completed: 0, pending: 0, refused: 0 };
-      }
-      routeMap[routeName].total++;
-      if (d.completed_at) routeMap[routeName].completed++;
-      else if (d.refused_at) routeMap[routeName].refused++;
-      else routeMap[routeName].pending++;
-    }
     const routeBreakdown = Object.values(routeMap).sort((a, b) => b.total - a.total);
 
     // ─── DAY-OF-WEEK DISTRIBUTION ───────────────
@@ -138,22 +202,7 @@ class ShippingMetrics {
       total: shipmentsByDow[i] + deliveriesByDow[i],
     }));
 
-    // ─── CARRIER BREAKDOWN ──────────────────────
-    const carrierMap = {};
-    for (const s of shipments) {
-      const carrier = (s.carrier_code || 'unknown').toUpperCase();
-      const service = s.service_code || 'unknown';
-      if (!carrierMap[carrier]) {
-        carrierMap[carrier] = { name: carrier, shipments: 0, cost: 0, services: {} };
-      }
-      carrierMap[carrier].shipments++;
-      carrierMap[carrier].cost += s.shipment_cost || 0;
-      if (!carrierMap[carrier].services[service]) {
-        carrierMap[carrier].services[service] = { count: 0, cost: 0 };
-      }
-      carrierMap[carrier].services[service].count++;
-      carrierMap[carrier].services[service].cost += s.shipment_cost || 0;
-    }
+    // ─── CARRIER & COST AGGREGATION ───────────────
     const carrierBreakdown = Object.values(carrierMap)
       .map((c) => ({
         ...c,
@@ -164,19 +213,6 @@ class ShippingMetrics {
       }))
       .sort((a, b) => b.shipments - a.shipments);
 
-    // ─── SHIPPING COSTS ─────────────────────────
-    let totalCost = 0;
-    const costByDay = {};
-    for (const s of shipments) {
-      const cost = s.shipment_cost || 0;
-      totalCost += cost;
-      const dateStr = this._extractDate(s.created_at || s.ship_date);
-      if (dateStr) {
-        if (!costByDay[dateStr]) costByDay[dateStr] = { cost: 0, count: 0 };
-        costByDay[dateStr].cost += cost;
-        costByDay[dateStr].count++;
-      }
-    }
     const avgCostPerShipment = totalShipments > 0 ? totalCost / totalShipments : 0;
     const avgDailyCost = totalDays > 0 ? totalCost / totalDays : 0;
 
@@ -209,28 +245,7 @@ class ShippingMetrics {
       .map((w) => ({ ...w, avgDailyCost: w.days > 0 ? w.cost / w.days : 0 }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // ─── GEOGRAPHIC BREAKDOWN ─────────────────────
-    const stateMap = {};
-    const cityMap = {};
-    for (const s of shipments) {
-      const addr = s.address;
-      if (!addr) continue;
-
-      const state = (addr.state || '').toUpperCase().trim();
-      if (state) {
-        if (!stateMap[state]) stateMap[state] = { name: state, shipments: 0, cost: 0 };
-        stateMap[state].shipments++;
-        stateMap[state].cost += s.shipment_cost || 0;
-      }
-
-      const city = (addr.city || '').trim();
-      if (city && state) {
-        const cityKey = `${city}, ${state}`;
-        if (!cityMap[cityKey]) cityMap[cityKey] = { name: cityKey, shipments: 0, cost: 0 };
-        cityMap[cityKey].shipments++;
-        cityMap[cityKey].cost += s.shipment_cost || 0;
-      }
-    }
+    // ─── GEOGRAPHIC AGGREGATION ────────────────────
     const stateBreakdown = Object.values(stateMap)
       .map((s) => ({ ...s, avgCost: s.shipments > 0 ? s.cost / s.shipments : 0 }))
       .sort((a, b) => b.shipments - a.shipments);
@@ -238,24 +253,7 @@ class ShippingMetrics {
       .sort((a, b) => b.shipments - a.shipments)
       .slice(0, 20);
 
-    // ─── SHIP DATE vs CREATED DATE LAG ────────────
-    const lagBuckets = { '0': 0, '1': 0, '2': 0, '3+': 0 };
-    let totalLagDays = 0;
-    let lagCount = 0;
-    for (const s of shipments) {
-      if (!s.ship_date || !s.created_at) continue;
-      const created = new Date(s.created_at);
-      const shipped = new Date(s.ship_date + 'T00:00:00');
-      const lagMs = shipped.getTime() - created.getTime();
-      // created_at can be after ship_date if label was made same day but timestamped later
-      const lagDays = Math.max(0, Math.round(lagMs / 86400000));
-      totalLagDays += lagDays;
-      lagCount++;
-      if (lagDays === 0) lagBuckets['0']++;
-      else if (lagDays === 1) lagBuckets['1']++;
-      else if (lagDays === 2) lagBuckets['2']++;
-      else lagBuckets['3+']++;
-    }
+    // ─── LAG & HOUR AGGREGATION ─────────────────────
     const avgLagDays = lagCount > 0 ? totalLagDays / lagCount : 0;
     const sameDayProcessingRate = lagCount > 0 ? (lagBuckets['0'] / lagCount) * 100 : 0;
     const lagDistribution = [
@@ -264,15 +262,6 @@ class ShippingMetrics {
       { name: '2 Days', count: lagBuckets['2'] },
       { name: '3+ Days', count: lagBuckets['3+'] },
     ];
-
-    // ─── PEAK HOUR DISTRIBUTION ───────────────────
-    const hourBuckets = new Array(24).fill(0);
-    for (const s of shipments) {
-      const ts = s.created_at;
-      if (!ts) continue;
-      const hour = new Date(ts).getHours();
-      hourBuckets[hour]++;
-    }
     const hourLabels = ['12AM','1AM','2AM','3AM','4AM','5AM','6AM','7AM','8AM','9AM','10AM','11AM',
       '12PM','1PM','2PM','3PM','4PM','5PM','6PM','7PM','8PM','9PM','10PM','11PM'];
     const hourDistribution = hourBuckets.map((count, hour) => ({ name: hourLabels[hour], hour, count }));

@@ -53,42 +53,33 @@ class DRXClient {
 
   async fetchShipmentsInRange(startDate, endDate) {
     const BATCH = 100;
-    let offset = 0;
-    let allShipments = [];
     const { before, after } = this._exclusiveDateRange(startDate, endDate);
+    const params = { afterDate: after, beforeDate: before };
 
     console.log(`  Fetching shipments from ${startDate} to ${endDate} (API filter: afterDate=${after}, beforeDate=${before})...`);
 
-    const firstRes = await this._request('/shipping', {
-      offset: 0, limit: BATCH,
-      afterDate: after, beforeDate: before,
-    });
+    const firstRes = await this._request('/shipping', { offset: 0, limit: BATCH, ...params });
     const totalExpected = firstRes.total || 0;
     const firstBatch = firstRes.data || firstRes.shipments || [];
-    allShipments.push(...firstBatch);
-    offset = firstBatch.length;
 
     console.log(`  API reports ${totalExpected} total shipments in range`);
 
-    while (offset < totalExpected) {
-      try {
-        const res = await this._request('/shipping', {
-          offset, limit: BATCH,
-          afterDate: after, beforeDate: before,
-        });
-        const batch = res.data || res.shipments || [];
-        if (batch.length === 0) break;
-        allShipments.push(...batch);
-        offset += batch.length;
-
-        if (offset % 500 < BATCH) {
-          console.log(`  ... fetched ${allShipments.length}/${totalExpected} shipments`);
-        }
-      } catch (e) {
-        console.error(`  Error fetching shipments at offset ${offset}:`, e.message);
-        offset += BATCH;
-      }
+    if (firstBatch.length >= totalExpected) {
+      console.log(`  Total shipments fetched: ${firstBatch.length}`);
+      return firstBatch;
     }
+
+    // Fetch all remaining pages in parallel
+    const pagePromises = [];
+    for (let offset = firstBatch.length; offset < totalExpected; offset += BATCH) {
+      pagePromises.push(
+        this._request('/shipping', { offset, limit: BATCH, ...params })
+          .then(res => res.data || res.shipments || [])
+          .catch(e => { console.error(`  Error fetching shipments at offset ${offset}:`, e.message); return []; })
+      );
+    }
+    const pages = await Promise.all(pagePromises);
+    const allShipments = firstBatch.concat(...pages);
 
     console.log(`  Total shipments fetched: ${allShipments.length}`);
     return allShipments;
@@ -96,49 +87,38 @@ class DRXClient {
 
   async fetchDeliveriesInRange(startDate, endDate) {
     const BATCH = 100;
-    let offset = 0;
-    let allDeliveries = [];
 
     console.log(`  Fetching deliveries from ${startDate} to ${endDate}...`);
 
-    // Deliveries endpoint uses deliveryDate for single-day filtering
-    // For a range, we iterate day by day or fetch all and filter
-    // The API also supports limit/offset, so we paginate through all
-    const firstRes = await this._request('/deliveries', {
-      offset: 0, limit: BATCH,
-    });
+    const firstRes = await this._request('/deliveries', { offset: 0, limit: BATCH });
     const totalExpected = firstRes.total || 0;
     const firstBatch = firstRes.data || firstRes.deliveries || [];
-    allDeliveries.push(...firstBatch);
-    offset = firstBatch.length;
 
     console.log(`  API reports ${totalExpected} total deliveries`);
 
-    while (offset < totalExpected) {
-      try {
-        const res = await this._request('/deliveries', {
-          offset, limit: BATCH,
-        });
-        const batch = res.data || res.deliveries || [];
-        if (batch.length === 0) break;
-        allDeliveries.push(...batch);
-        offset += batch.length;
-
-        if (offset % 500 < BATCH) {
-          console.log(`  ... fetched ${allDeliveries.length}/${totalExpected} deliveries`);
-        }
-      } catch (e) {
-        console.error(`  Error fetching deliveries at offset ${offset}:`, e.message);
-        offset += BATCH;
+    let allDeliveries;
+    if (firstBatch.length >= totalExpected) {
+      allDeliveries = firstBatch;
+    } else {
+      // Fetch all remaining pages in parallel
+      const pagePromises = [];
+      for (let offset = firstBatch.length; offset < totalExpected; offset += BATCH) {
+        pagePromises.push(
+          this._request('/deliveries', { offset, limit: BATCH })
+            .then(res => res.data || res.deliveries || [])
+            .catch(e => { console.error(`  Error fetching deliveries at offset ${offset}:`, e.message); return []; })
+        );
       }
+      const pages = await Promise.all(pagePromises);
+      allDeliveries = firstBatch.concat(...pages);
     }
 
-    // Filter to date range client-side
-    const start = new Date(startDate + 'T00:00:00');
-    const end = new Date(endDate + 'T23:59:59');
+    // Filter to date range client-side (API doesn't support date range filtering)
+    const startMs = new Date(startDate + 'T00:00:00').getTime();
+    const endMs = new Date(endDate + 'T23:59:59').getTime();
     allDeliveries = allDeliveries.filter((d) => {
-      const delivDate = new Date(d.delivery_on || d.created_at);
-      return delivDate >= start && delivDate <= end;
+      const t = new Date(d.delivery_on || d.created_at).getTime();
+      return t >= startMs && t <= endMs;
     });
 
     console.log(`  Total deliveries in range: ${allDeliveries.length}`);
@@ -147,25 +127,27 @@ class DRXClient {
 
   async fetchDeliveryRoutes() {
     const BATCH = 100;
-    let offset = 0;
-    let allRoutes = [];
-
     console.log(`  Fetching delivery routes...`);
 
-    while (true) {
-      try {
-        const res = await this._request('/deliveries/routes', {
-          offset, limit: BATCH,
-        });
-        const batch = res.data || res.routes || [];
-        if (batch.length === 0) break;
-        allRoutes.push(...batch);
-        offset += batch.length;
-      } catch (e) {
-        console.error(`  Error fetching routes at offset ${offset}:`, e.message);
-        break;
-      }
+    const firstRes = await this._request('/deliveries/routes', { offset: 0, limit: BATCH });
+    const firstBatch = firstRes.data || firstRes.routes || [];
+    const totalExpected = firstRes.total || firstBatch.length;
+
+    if (firstBatch.length === 0 || firstBatch.length >= totalExpected) {
+      console.log(`  Total delivery routes fetched: ${firstBatch.length}`);
+      return firstBatch;
     }
+
+    const pagePromises = [];
+    for (let offset = firstBatch.length; offset < totalExpected; offset += BATCH) {
+      pagePromises.push(
+        this._request('/deliveries/routes', { offset, limit: BATCH })
+          .then(res => res.data || res.routes || [])
+          .catch(e => { console.error(`  Error fetching routes at offset ${offset}:`, e.message); return []; })
+      );
+    }
+    const pages = await Promise.all(pagePromises);
+    const allRoutes = firstBatch.concat(...pages);
 
     console.log(`  Total delivery routes fetched: ${allRoutes.length}`);
     return allRoutes;
